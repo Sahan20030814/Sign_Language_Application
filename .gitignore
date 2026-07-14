@@ -1,0 +1,16 @@
+# Virtual environment - never commit this, it's huge and machine-specific
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Optional: comment these out if you WANT your recorded data / trained
+# model tracked in git. Recorded gesture data can get large fast.
+# gesture_data/
+# *.h5
