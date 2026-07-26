@@ -26,6 +26,7 @@ collect_data.py + train_lstm.py for a real trained model.
 """
 
 import os
+import sys
 import json
 import time
 import math
@@ -45,6 +46,17 @@ from gesture_utils import (
     create_hands_detector, extract_landmarks, draw_landmarks,
     SEQUENCE_LENGTH, MODEL_PATH, LABELS_PATH,
 )
+
+# ----------------------------------------------------------------------------
+# Resource paths (works both running from source AND from a PyInstaller .exe)
+# ----------------------------------------------------------------------------
+def resource_path(relative_path):
+    """Returns an absolute path to a bundled resource (e.g. an icon file).
+    Works when running `python app.py` directly, and also when frozen into
+    a PyInstaller .exe (which unpacks bundled data into sys._MEIPASS)."""
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
+
 
 # ----------------------------------------------------------------------------
 # Behaviour tuning
@@ -297,6 +309,7 @@ class SignLanguageApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Sign Language → Speech")
+        self._apply_window_icon()
         self.root.configure(bg=GRAD_TOP)
         self.root.geometry(f"{DEFAULT_W}x{DEFAULT_H}")
         self.root.minsize(1000, 620)
@@ -326,6 +339,24 @@ class SignLanguageApp:
         self._tick()
 
     # ------------------------------------------------------------ model
+    def _apply_window_icon(self):
+        """Sets the taskbar + title-bar icon to resources/SignBridge.
+        Tries the .ico first (most reliable for Windows' taskbar), and
+        falls back to the .png (works cross-platform via iconphoto)."""
+        ico_path = resource_path(os.path.join("resources", "SignBridge.ico"))
+        png_path = resource_path(os.path.join("resources", "SignBridge.png"))
+        try:
+            if os.path.exists(ico_path):
+                self.root.iconbitmap(default=ico_path)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(png_path):
+                self._icon_img_ref = tk.PhotoImage(file=png_path)  # keep a reference alive
+                self.root.iconphoto(True, self._icon_img_ref)
+        except Exception:
+            pass
+
     def _load_model(self):
         if not (os.path.exists(MODEL_PATH) and os.path.exists(LABELS_PATH)):
             self.model = None
