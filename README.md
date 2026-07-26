@@ -26,8 +26,9 @@ adds a reverse **Speech → Sign Language** mode with an on-screen avatar.)
 11. [Building a standalone .exe](#11-building-a-standalone-exe)
 12. [Troubleshooting](#12-troubleshooting)
 13. [Honest limitations](#13-honest-limitations)
-14. [For Contributors: training a REAL AI model](#14-for-contributors-training-a-real-ai-model)
-15. [License](#15-license)
+14. [Collaborator workflow: branching, pushing, and pull requests](#14-collaborator-workflow-branching-pushing-and-pull-requests)
+15. [For Contributors: training a REAL AI model](#15-for-contributors-training-a-real-ai-model)
+16. [License](#16-license)
 
 ---
 
@@ -59,7 +60,7 @@ on your own data.
 If you just want to **use** the app — no coding, no Python install — grab
 a pre-built release instead of following the developer setup below.
 
-1. Go to the **[Releases](../../releases)** page of this repository.
+1. Go to the **[Releases](https://github.com/Sahan20030814/Sign_Language_Application/releases)** page of this repository.
 2. Download the latest **`SignBridge_v1.0_windows.zip`** file (under
    "Assets" on the release).
 3. **Extract the whole zip** to a folder of your choice (right-click →
@@ -100,7 +101,7 @@ build your own release, continue to the developer setup below.
 ## 4. Getting the code
 
 ```powershell
-git clone https://github.com/<your-username>/Sign_Language_Application.git
+git clone https://github.com/Sahan20030814/Sign_Language_Application.git
 cd Sign_Language_Application
 ```
 
@@ -182,7 +183,7 @@ random. That is expected, not a bug.
 
 If you want the app to actually work correctly, you (or a contributor)
 need to train it on real recorded data — see
-[section 14, For Contributors](#14-for-contributors-training-a-real-ai-model).
+[section 15, For Contributors](#15-for-contributors-training-a-real-ai-model).
 
 ---
 
@@ -481,7 +482,7 @@ desktop apps to access it.
 **Model not found popup on launch**
 Run `python make_demo_model.py` for an instant test model — see
 [section 7](#7-quick-start-run-it-with-the-dummy-demo-model) — or train a
-real one, see [section 14](#14-for-contributors-training-a-real-ai-model).
+real one, see [section 15](#15-for-contributors-training-a-real-ai-model).
 
 **`ImportError: DLL load failed while importing
 _pywrap_tensorflow_internal` when running a packaged `.exe`**
@@ -515,7 +516,104 @@ back to the project folder (Step 2 in [section 11](#11-building-a-standalone-exe
 
 ---
 
-## 14. For Contributors: training a REAL AI model
+## 14. Collaborator workflow: branching, pushing, and pull requests
+
+This repository's `main` branch is **protected** — nobody (including
+collaborators) can push to it directly. All changes go through a
+**feature branch + Pull Request**, reviewed and merged by a maintainer.
+Here's the full workflow, start to finish.
+
+### If you've been added as a Collaborator (write access)
+
+**1. Get the project (one-time setup):**
+```powershell
+git clone https://github.com/Sahan20030814/Sign_Language_Application.git
+cd Sign_Language_Application
+```
+
+**2. Create a new branch for your change** (never work directly on `main`):
+```powershell
+git checkout main
+git pull origin main          # make sure you're starting from the latest code
+git checkout -b feature/my-improvement
+```
+Use a short, descriptive branch name, e.g. `feature/add-goodbye-word`,
+`fix/mic-crash`, `docs/update-readme`.
+
+**3. Make your changes**, then check what changed:
+```powershell
+git status
+git diff
+```
+
+**4. Stage and commit:**
+```powershell
+git add .
+git commit -m "Describe what this change does"
+```
+
+**5. Push your branch to GitHub** (not `main` — your own branch):
+```powershell
+git push origin feature/my-improvement
+```
+The **first time** you push a new branch, Git may ask you to set the
+upstream — if so, use exactly the command it suggests, or:
+```powershell
+git push -u origin feature/my-improvement
+```
+
+**6. Open a Pull Request:**
+- GitHub shows a **"Compare & pull request"** banner right after you push
+  — click it. (Or go to the repo → **Pull requests** tab →
+  **New pull request**.)
+- Base branch: `main`. Compare branch: your `feature/...` branch.
+- Add a clear title/description of what you changed and why, then
+  **"Create pull request"**.
+
+**7. Wait for review.** A maintainer will review, may leave comments
+(resolve those and push more commits to the same branch if needed — they
+land in the same PR automatically), and will **merge** it once approved.
+
+**8. After it's merged, sync your local `main`:**
+```powershell
+git checkout main
+git pull origin main
+```
+You can now delete your old branch (optional, keeps things tidy):
+```powershell
+git branch -d feature/my-improvement
+git push origin --delete feature/my-improvement
+```
+
+### Keeping your branch up to date while you work
+
+If `main` gets updated by someone else while you're still working on your
+branch, bring those changes into your branch before opening (or while
+waiting on) your PR:
+```powershell
+git checkout feature/my-improvement
+git fetch origin
+git merge origin/main
+```
+Resolve any merge conflicts Git points out, then commit and push as usual.
+
+### If you do NOT have write access (public contributors)
+
+You'll need to **fork** the repo first — see the note in this README's
+branch-protection setup, or briefly:
+1. Click **"Fork"** on the repo's GitHub page (copies it to your own account).
+2. Clone **your fork**, not the original:
+   ```powershell
+   git clone https://github.com/Sahan20030814/Sign_Language_Application.git
+   ```
+3. Follow steps 2–6 above exactly the same way, but your `git push` goes
+   to your fork.
+4. When opening the Pull Request, GitHub will offer **"compare across
+   forks"** — target the original repo's `main` branch as the base.
+
+---
+
+## 15. For Contributors: training a REAL AI model
 
 The dummy model from [section 7](#7-quick-start-run-it-with-the-dummy-demo-model)
 is only for kicking the tires. If you're contributing to this project —
@@ -580,6 +678,6 @@ python train_lstm.py
 
 ---
 
-## 15. License
+## 16. License
 
 See [`LICENSE`](./LICENSE) for details.
