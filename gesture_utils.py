@@ -72,6 +72,24 @@ def extract_landmarks(results):
     return np.concatenate([left, right]), hand_seen
 
 
+def get_word_sample(word, prefer_random=True):
+    """
+    Loads one recorded landmark sequence (shape SEQUENCE_LENGTH x FEATURE_SIZE)
+    for `word` from DATA_DIR, for animating the avatar in speech-to-sign mode.
+    Returns None if no recording exists for that word.
+    """
+    import os
+    import random
+    folder = os.path.join(DATA_DIR, word)
+    if not os.path.isdir(folder):
+        return None
+    files = [f for f in os.listdir(folder) if f.endswith(".npy")]
+    if not files:
+        return None
+    choice = random.choice(files) if prefer_random else sorted(files)[0]
+    return np.load(os.path.join(folder, choice))
+
+
 def draw_landmarks(frame, results):
     """Draws the hand skeleton onto the frame (nice visual feedback for the user)."""
     if results.multi_hand_landmarks:
