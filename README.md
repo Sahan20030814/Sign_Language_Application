@@ -1,193 +1,192 @@
-# SignBridge — Sign Language → Speech (v1.0)
+# SignBridge v2.0 — Two-Way Sign Language ↔ Speech Communication
 
-SignBridge watches a person's hand signs through a webcam, recognises
-whole **words** (not just letters) using a custom-trained AI model, builds
-them into a sentence, and speaks the sentence out loud automatically —
-helping a person who cannot speak communicate with a hearing person in
-real time.
+SignBridge is a free, open-source Windows desktop application that helps people who cannot speak or hear communicate with each other in real time. It works in **two directions**:
 
-This is **v1.0**: the **Sign Language → Speech** mode only. (A future v2.0
-adds a reverse **Speech → Sign Language** mode with an on-screen avatar.)
+| Mode | Direction | What it does |
+|---|---|---|
+| **Mode 1** | Sign Language → Speech | Watches a person's hand signs through a webcam, recognises whole **words**, builds them into a sentence, and speaks the sentence out loud. |
+| **Mode 2** *(new in v2.0)* | Speech → Sign Language | Listens to a microphone **or** plays an audio file, converts the speech to text, and shows each recognised word as a **hand gesture performed by an on-screen human avatar**. |
+
+Everything runs on your own PC. Only the speech-to-text step in Mode 2 uses the internet (see [Privacy](#16-privacy)).
 
 ---
 
 ## Table of Contents
 
-1. [How it works](#1-how-it-works)
-2. [Download & run (no Python needed)](#2-download--run-no-python-needed)
-3. [Developer setup — requirements](#3-developer-setup--requirements)
-4. [Getting the code](#4-getting-the-code)
-5. [Set up a virtual environment](#5-set-up-a-virtual-environment)
-6. [Install dependencies](#6-install-dependencies)
-7. [Quick start: run it with the dummy demo model](#7-quick-start-run-it-with-the-dummy-demo-model)
-8. [Run the app from source](#8-run-the-app-from-source)
-9. [Using the app](#9-using-the-app)
-10. [Project structure](#10-project-structure)
-11. [Building a standalone .exe](#11-building-a-standalone-exe)
-12. [Troubleshooting](#12-troubleshooting)
-13. [Honest limitations](#13-honest-limitations)
-14. [Collaborator workflow: branching, pushing, and pull requests](#14-collaborator-workflow-branching-pushing-and-pull-requests)
-15. [For Contributors: training a REAL AI model](#15-for-contributors-training-a-real-ai-model)
-16. [License](#16-license)
+1. [What's new in v2.0](#1-whats-new-in-v20)
+2. [How it works](#2-how-it-works)
+3. [Download & run (no Python needed)](#3-download--run-no-python-needed)
+4. [System requirements](#4-system-requirements)
+5. [Developer setup](#5-developer-setup)
+6. [Quick start: run with the demo model](#6-quick-start-run-with-the-demo-model)
+7. [Training your own real model](#7-training-your-own-real-model)
+8. [Using the app](#8-using-the-app)
+9. [Project structure](#9-project-structure)
+10. [Configuration & tuning](#10-configuration--tuning)
+11. [Building the standalone Windows release](#11-building-the-standalone-windows-release)
+12. [Publishing to GitHub](#12-publishing-to-github)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Honest limitations](#14-honest-limitations)
+15. [Contributing](#15-contributing)
+16. [Privacy](#16-privacy)
+17. [Changelog](#17-changelog)
+18. [License](#18-license)
 
 ---
 
-## 1. How it works
+## 1. What's new in v2.0
 
-Recognising a signed **word** requires tracking motion over roughly a
-second, not just a single photo — so this project splits the problem into
-two free, open-source pieces instead of relying on one big pretrained
-model (no such free "download-and-go" word-level sign model reliably
-exists):
+**New: Speech → Sign Language mode**
 
-- **[MediaPipe Hands](https://github.com/google/mediapipe)** (free,
-  open-source) finds 21 hand landmark points per frame. It does **not**
-  know what word is being signed — it only locates the hand's shape.
-- A **30-frame sequence of those landmarks (~1 second)** is fed into an
-  **LSTM neural network that this project trains itself**
-  (`train_lstm.py`). That trained network is the actual "intelligence"
-  that predicts which word was signed.
-- Training data comes from **your own webcam recordings**
-  (`collect_data.py`) — there is no pretrained word-model to download.
+- A **🔁 Mode** button in the header switches between the two modes.
+- **Microphone input** — pick any working microphone from an automatically populated dropdown. The mic starts *muted*; unmute it (with **⏻ Power ON**) to start listening.
+- **Audio-file input** — browse for a `.wav` file, then play, pause, seek on a timeline, skip ±5 seconds, and change playback speed (0.5x – 2x).
+- **Live transcript box** with a **Copy** button. Transcription of audio files streams in progressively (roughly 8-second chunks) with a progress bar, so the avatar can start signing before the whole file is processed.
+- **Human avatar** (head, hair, ears, eyes, nose, mouth, neck, formal long-sleeve shirt, arms). The body stays still; only the **hands** move. At rest the hands are folded together. While signing, each hand is driven by a **real recorded MediaPipe hand-landmark sequence** for that word, not a synthetic animation.
+- **▶ Play Signs / ⏸ Pause Signs** to step through the transcript word by word at your own pace.
+- While an audio file is playing, the avatar **signs in sync with playback** automatically, including after seeking, skipping, or changing speed.
+- The webcam is **released while in Speech → Sign mode** and reconnects automatically when you switch back.
+- Switching mode or input source cleanly resets the path, timeline, speed and transcript, and discards any transcription still running in the background.
 
-The result is a fully free, fully open-source pipeline, trained entirely
-on your own data.
+**Carried over from v1.0:** word-level recognition with a custom-trained LSTM, automatic speech output, power/mute/speak/copy/space/backspace/clear controls, responsive layout and fullscreen (F11).
 
 ---
 
-## 2. Download & run (no Python needed)
+## 2. How it works
 
-If you just want to **use** the app — no coding, no Python install — grab
-a pre-built release instead of following the developer setup below.
+### Mode 1 — Sign → Speech
 
-1. Go to the **[Releases](https://github.com/Sahan20030814/Sign_Language_Application/releases)** page of this repository.
-2. Download the latest **`SignBridge_v1.0_windows.zip`** file (under
-   "Assets" on the release).
-3. **Extract the whole zip** to a folder of your choice (right-click →
-   *Extract All...*). Don't try to run anything from inside the zip
-   without extracting first.
+Recognising a signed **word** requires tracking motion over about a second, not just one photo. SignBridge therefore splits the problem into two free, open-source pieces:
+
+1. **[MediaPipe Hands](https://github.com/google/mediapipe)** finds 21 landmark points per hand in every camera frame (up to two hands, giving 126 numbers per frame). It does **not** know which word is being signed; it only locates the hand's shape.
+2. A **30-frame sequence** of those landmarks (~1 second) is fed into an **LSTM neural network that this project trains itself** (`train_lstm.py`). That network is the actual "intelligence" that predicts the word.
+3. When the prediction confidence is high enough, the word is committed to the sentence and, unless muted, spoken with the offline text-to-speech engine (**pyttsx3**).
+
+Training data comes from **your own webcam recordings** (`collect_data.py`). There is no pretrained word-level model to download.
+
+### Mode 2 — Speech → Sign
+
+1. Speech is captured from a microphone, or read from a `.wav` file.
+2. It is converted to text with the **SpeechRecognition** library using Google's free web speech API (**internet required**).
+3. Each recognised word that exists in the model's vocabulary (`word_labels.json`) is looked up in `gesture_data/<word>/*.npy` — the same recordings used for training.
+4. The avatar's hands are drawn from the recorded landmark sequence for that word.
+
+---
+
+## 3. Download & run (no Python needed)
+
+1. Open the **[Releases](../../releases)** page of this repository.
+2. Download the latest **`SignBridge_v2.0_windows.zip`** (under *Assets*).
+3. **Extract the whole zip** to a folder of your choice (right-click → *Extract All…*). Do not run anything from inside the zip.
 4. Open the extracted folder and double-click **`SignBridge.exe`**.
-   - The first launch can take a few extra seconds while things warm up
-     — that's normal.
-   - Windows may show a **"Windows protected your PC"** SmartScreen
-     warning, because this is an unsigned hobby/student project (no paid
-     code-signing certificate). Click **"More info" → "Run anyway"**.
-5. Allow the **camera** permission prompt if Windows asks for it.
+   - The first launch can take a few extra seconds. That is normal.
+   - Windows may show **"Windows protected your PC"** (SmartScreen) because this is an unsigned hobby/student project. Click **More info → Run anyway**.
+5. Allow the **camera** permission (Mode 1) and the **microphone** permission (Mode 2) if Windows asks.
 
-> ⚠️ **Keep the whole extracted folder together.** `SignBridge.exe` needs
-> the `python_embed/`, `resources/`, `word_model.h5`, and other files that
-> sit next to it — don't move just the `.exe` on its own, and don't
-> delete anything else in that folder.
+> ⚠️ **Keep the whole extracted folder together.** `SignBridge.exe` needs the `python_embed/`, `gesture_data/`, `resources/`, `word_model.h5`, `word_labels.json` and the `.py` files next to it. Do not move the `.exe` on its own and do not delete anything else in the folder.
 
-That's it — no Python, no pip installs, no virtual environment needed for
-this route. If you *do* want to modify the code, retrain the model, or
-build your own release, continue to the developer setup below.
+Notes for end users:
+
+- **Mode 2 needs an internet connection** (speech-to-text). Mode 1 works fully offline.
+- The audio-file picker accepts **`.wav`** files.
+- If the app does not start on a very clean PC, install the **[Microsoft Visual C++ Redistributable (x64)](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)** and try again.
 
 ---
 
-## 3. Developer setup — requirements
+## 4. System requirements
 
-- **Windows 10/11** (the setup notes below are Windows-focused; the app
-  itself is cross-platform Python/Tkinter)
-- **Python 3.11** — **not 3.12/3.13**. `mediapipe==0.10.14` (the version
-  pinned in `requirements.txt`, needed for a feature this project relies
-  on — see [Troubleshooting](#12-troubleshooting)) does not have Windows
-  wheels for Python 3.12+.
-- A working **webcam**
-- ~2–3 GB free disk space (TensorFlow + MediaPipe are large libraries)
+**To run the release build**
+
+- Windows 10 or 11 (64-bit)
+- A working **webcam** (Mode 1)
+- A working **microphone** and **internet** (Mode 2 live listening / audio transcription)
+- Several GB of free disk space (TensorFlow and MediaPipe are large)
+
+**To run from source (developers)**
+
+- Windows 10/11 (the setup notes are Windows-focused; the app itself is Python/Tkinter)
+- **Python 3.11** — *not* 3.12 or 3.13. `mediapipe==0.10.14` (pinned in `requirements.txt`) has no Windows wheels for Python 3.12+, and newer MediaPipe versions removed the `mp.solutions` API this project uses.
+- ~2–3 GB of free disk space
 
 ---
 
-## 4. Getting the code
+## 5. Developer setup
+
+### 5.1 Get the code
 
 ```powershell
 git clone https://github.com/Sahan20030814/Sign_Language_Application.git
 cd Sign_Language_Application
 ```
 
----
-
-## 5. Set up a virtual environment
-
-Using a virtual environment keeps this project's dependencies separate
-from anything else on your machine.
+### 5.2 Create a virtual environment (Python 3.11)
 
 ```powershell
 py -3.11 -m venv venv
 ```
 
-Activate it — **every time you open a new terminal** to work on this
-project, you need to activate it again:
+Activate it. **Do this in every new terminal** you open for this project:
 
 ```powershell
 .\venv\Scripts\activate
 ```
 
-> **PowerShell users:** the leading `.\` is required — running
-> `venv\Scripts\activate` without it makes PowerShell try to import a
-> module called `venv` instead of running the script, which fails with
-> `The module 'venv' could not be loaded`.
->
-> If you're using Command Prompt (`cmd.exe`) instead of PowerShell, drop
-> the `.\`: just `venv\Scripts\activate`.
+- In **PowerShell** the leading `.\` is required. Without it PowerShell tries to import a module called `venv`.
+- In **Command Prompt (cmd.exe)** use `venv\Scripts\activate`.
+- Your prompt should now start with `(venv)`.
 
-You'll know it worked when your prompt shows `(venv)` at the start.
-
-If PowerShell refuses to run the activation script at all with a message
-like *"running scripts is disabled on this system"*, run this once
-(in an Administrator PowerShell window), then try activating again:
+If PowerShell says *"running scripts is disabled on this system"*, run this once and try again:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
----
+Check that the right interpreter is active:
 
-## 6. Install dependencies
+```powershell
+python --version        # must print Python 3.11.x
+pip show mediapipe      # must show Version: 0.10.14
+```
 
-With the virtual environment activated:
+### 5.3 Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-If `pyaudio`-style native-build errors show up for any dependency, or a
-package fails with *"Microsoft Visual C++ 14.0 or greater is required"*,
-install the
-[Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-and try again.
+`requirements.txt`:
+
+| Package | Used for |
+|---|---|
+| `opencv-python` | Camera capture and drawing |
+| `mediapipe==0.10.14` | Hand landmark detection |
+| `tensorflow>=2.16` | LSTM word model |
+| `scikit-learn` | Train/validation split |
+| `numpy`, `Pillow` | Arrays and image handling |
+| `pyttsx3` | Offline text-to-speech |
+| `SpeechRecognition` | Speech-to-text (Mode 2) |
+| `pydub` | Audio conversion helper |
+| `pyaudio` | Microphone access (Mode 2) |
+| `pygame` | Audio-file playback (Mode 2) |
+| `pypiwin32` (Windows only) | Windows speech/COM support |
+
+If a package fails with *"Microsoft Visual C++ 14.0 or greater is required"*, install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and retry. If `pyaudio` fails to install, see [Troubleshooting](#13-troubleshooting).
 
 ---
 
-## 7. Quick start: run it with the dummy demo model
+## 6. Quick start: run with the demo model
 
-The app needs two files in the project root before it can recognise
-anything: `word_model.h5` and `word_labels.json`. For a quick look at the
-app with **zero setup**, generate a placeholder ("dummy") model from
-synthetic data:
+The app needs two files in the project root: `word_model.h5` and `word_labels.json`. To try the app immediately, generate a placeholder model from synthetic data:
 
 ```powershell
 python make_demo_model.py
 ```
 
-This creates `word_model.h5` + `word_labels.json` in seconds.
+This creates `word_model.h5` + `word_labels.json` in seconds, and also writes sample recordings into `gesture_data/` so the Mode 2 avatar has something to animate.
 
-⚠️ **Important — read this before you judge the accuracy:** this dummy
-model is trained on made-up, synthetic numbers, **not real hand shapes**.
-It exists purely so you (or anyone trying the repo out) can test the
-camera, power switch, mute, speak, copy, sentence box, and overall UI
-end-to-end, immediately, without recording anything first. **It will not
-correctly recognise real signs** — whatever hand shape you show it, it
-will confidently call it one of the 10 vocabulary words essentially at
-random. That is expected, not a bug.
+> ⚠️ **The demo model does not recognise real signs.** It is trained on made-up numbers, not real hands. Whatever you show the camera, it will pick one of the 10 words more or less at random. That is expected. It exists so you can test the camera, power switch, mute, speak, copy, sentence box, microphone, audio player and avatar mechanics end to end. Train a real model (next section) for real accuracy.
 
-If you want the app to actually work correctly, you (or a contributor)
-need to train it on real recorded data — see
-[section 15, For Contributors](#15-for-contributors-training-a-real-ai-model).
-
----
-
-## 8. Run the app from source
+Run the app:
 
 ```powershell
 python app.py
@@ -195,169 +194,186 @@ python app.py
 
 ---
 
-## 9. Using the app
+## 7. Training your own real model
 
-1. **⏻ Power** (top-right) — **starts OFF** by default. Turn it ON before
-   recognition begins.
-2. **⛶ Fullscreen** / **F11** — toggles fullscreen. **Esc** exits it. The
-   window is also freely resizable — the layout is fully responsive.
-3. There's no ROI box — show your hand anywhere in frame; MediaPipe finds
-   it automatically. Nothing is recognised while no hand is visible.
-4. **BUILDING WORD** bar — shows the model's live, in-progress guess
-   before it's confident enough to commit. Once confirmed, the word:
-   - is added to the sentence automatically (with a space), **and**
-   - (unless muted) is spoken immediately.
-5. **🔔/🔕 Mute** — starts **unmuted**. When muted, new words still appear
-   as text but aren't spoken automatically (the manual Speak button still
-   works either way).
-6. **🔊 Speak** — reads the whole sentence aloud. If a new sign is
-   recognised while it's speaking, it stops immediately and speaks just
-   the new word (it doesn't restart the full sentence).
-7. **⧉ Copy** — copies the sentence to the clipboard.
-8. **␣ Add Space** — manually inserts a space.
-9. **⌫ Backspace** — removes the last recognised *word* (signs produce
-   whole words, so this removes a word, not a single character).
-10. **🗑 Clear All** — clears everything.
-11. **Language dropdown** (top-right) — English only for now; switching
-    languages asks for confirmation and clears the current sentence.
+### Step 1 — Record your signs
+
+```powershell
+python collect_data.py
+```
+
+- **Default vocabulary (10 words):** `hello, thanks, yes, no, please, help, water, food, stop, love`.
+- Custom words or a subset:
+  ```powershell
+  python collect_data.py --words hello thanks yes no please goodbye
+  ```
+- More samples per word (default is 30):
+  ```powershell
+  python collect_data.py --sequences 40
+  ```
+- Use a different camera:
+  ```powershell
+  python collect_data.py --cam_index 1
+  ```
+
+While recording:
+
+| Key | Action |
+|---|---|
+| **SPACE** | Start recording the next sample (3-2-1 countdown, then ~1 second of "RECORDING…") |
+| **N** | Skip to the next word |
+| **Q** | Quit (samples already recorded are kept) |
+
+Each sample is a 30-frame sequence of hand landmarks (not video) saved as `gesture_data/<word>/<n>.npy` with shape `(30, 126)`. Files are tiny and no images are stored.
+
+**Tips for good data**
+
+- Keep your hand fully inside the frame for the whole second.
+- Aim for **30–40+ samples per word**.
+- Vary position, lighting and background slightly between takes, and record in several sessions rather than all at once.
+
+### Step 2 — Train the model
+
+```powershell
+python train_lstm.py
+python train_lstm.py --epochs 100 --batch_size 16     # optional tuning
+```
+
+- Trains an LSTM classifier (LSTM 128 → Dropout → LSTM 64 → Dropout → Dense 64 → Softmax) on everything in `gesture_data/`.
+- Uses an 85/15 train/validation split, early stopping and keeps the best checkpoint.
+- Writes **`word_model.h5`** and **`word_labels.json`**, the two files the app loads at runtime.
+- Takes a few minutes on a normal CPU. It always retrains from scratch on the full folder, so re-run it whenever you add recordings or words.
+
+> **Important for Mode 2:** the avatar can only sign a word if `gesture_data/<word>/` contains at least one `.npy` recording for it. Keep `gesture_data/` alongside the model (and include it in any release you build).
 
 ---
 
-## 10. Project structure
+## 8. Using the app
+
+### 8.1 Header controls (both modes)
+
+| Control | Function |
+|---|---|
+| **🔁 Mode** | Switch between *Sign → Speech* and *Speech → Sign* |
+| **⏻ Power** | Master switch. **Starts OFF.** Recognition and listening only work when it is ON. |
+| **⛶ Fullscreen / F11** | Toggle fullscreen. **Esc** exits fullscreen. |
+| **Language** | English only for now. Changing it asks for confirmation and clears the current text. |
+
+The window is freely resizable and the layout is fully responsive.
+
+### 8.2 Mode 1 — Sign → Speech
+
+1. Turn **⏻ Power** ON.
+2. Show a hand sign anywhere in the camera view. There is no ROI box; MediaPipe finds the hand automatically. **Nothing is recognised while no hand is visible.**
+3. The **BUILDING WORD** bar shows the model's live, in-progress guess with a confidence percentage.
+4. When the confidence is high enough (default ≥ 45%) and the cooldown has passed (default 1.4 s), the word is:
+   - added to the sentence automatically (with a trailing space), **and**
+   - spoken immediately (unless muted).
+
+| Button | Function |
+|---|---|
+| **🔔 / 🔕 Mute** | Starts *unmuted*. When muted, new words appear as text but are not spoken automatically. The manual Speak button still works. |
+| **🔊 Speak** | Reads the whole sentence aloud. If a new sign is recognised meanwhile, it stops at once and speaks only the new word. |
+| **⧉ Copy** | Copies the sentence to the clipboard. |
+| **␣ Add Space** | Inserts a space manually. |
+| **⌫ Backspace** | Removes the last recognised **word** (signs are whole words, not letters). |
+| **🗑 Clear All** | Clears everything. |
+
+### 8.3 Mode 2 — Speech → Sign
+
+Click **🔁 Mode** to switch. Pick an input source from the dropdown.
+
+#### 🎙 Microphone
+
+1. Choose your microphone from the dropdown. It lists the working input devices that Windows Sound Settings shows as enabled (duplicates and disabled devices are filtered out).
+2. Make sure **⏻ Power** is ON, then **unmute** the mic. It starts muted.
+3. Speak. Words that match the model's vocabulary make the avatar perform the corresponding recorded hand gesture. Everything you say is added to the **TRANSCRIPT** box.
+4. Use **⧉ Copy** to copy the transcript.
+
+#### 🔊 Audio file
+
+1. Click **Browse…** and select a **`.wav`** file.
+2. The file is transcribed in the background in short chunks (internet required). A progress bar and percentage show the status, and results stream into the transcript as each chunk completes.
+3. Controls:
+   - **▶ Play Audio** — plays the sound. The avatar signs in step with playback automatically.
+   - **Timeline** — click or drag to seek.
+   - **⏪ 5s / 5s ⏩** — skip backward or forward.
+   - **Speed** — 0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 2.0x. It is disabled until a file is loaded, resets to 1.0x when you switch mode/source, and changing it while playing does not interrupt the audio.
+4. Selecting a new file resets the path, timeline and transcript.
+
+#### ▶ Play Signs / ⏸ Pause Signs
+
+Below the transcript box. **Play Signs** performs the gestures for the words **from the cursor position onward**, in order, and moves the cursor along. **Pause** stops on the current gesture, and **Play** resumes from there. This works independently of the audio, so you can review the transcript at your own pace.
+
+#### What the avatar does
+
+- Idle: arms rest inward, hands folded together.
+- Signing: arms spread, and each hand follows the recorded landmark sequence for the word. The non-signing hand stays in its resting shape and is always visible.
+- If no recording exists for a word, the status line under the avatar says **"No recorded gesture for '<word>'"**.
+
+---
+
+## 9. Project structure
 
 ```
 Sign_Language_Application/
-├── app.py                # Main application (GUI, camera, recognition, TTS)
-├── gesture_utils.py       # MediaPipe landmark extraction helpers/constants
-├── collect_data.py        # Records your own webcam samples per word
-├── train_lstm.py          # Trains the LSTM word-classifier on your recordings
-├── make_demo_model.py     # Generates an instant placeholder model for testing
-├── launcher.py            # Entry point used for the packaged .exe (see section 11)
+├── app.py               # Main application: GUI, camera, recognition, TTS, both modes
+├── gesture_utils.py     # MediaPipe landmark helpers, constants, get_word_sample()
+├── audio_player.py      # .wav playback with play/pause/seek/speed (pygame)
+├── stt_utils.py         # Speech-to-text, microphone listing, audio chunking
+├── avatar.py            # Human avatar drawn on a Tkinter canvas (hands from real landmarks)
+├── renderer3d.py        # Experimental pure-Python 3D renderer (not used by app.py yet)
+├── collect_data.py      # Record your own webcam samples per word
+├── train_lstm.py        # Train the LSTM word classifier
+├── make_demo_model.py   # Generate an instant placeholder model + sample data
+├── launcher.py          # Entry point compiled to SignBridge.exe (see section 11)
 ├── requirements.txt
 ├── resources/
-│   ├── SignBridge.png     # App icon (source image)
-│   └── SignBridge.ico     # App icon (Windows .ico, for the taskbar/.exe)
-├── gesture_data/           # Your recorded samples (created by collect_data.py)
-├── word_model.h5           # Trained model (created by make_demo_model.py / train_lstm.py)
-├── word_labels.json         # Class index → word mapping (same as above)
+│   ├── SignBridge.png   # App icon (source image)
+│   └── SignBridge.ico   # Windows icon (taskbar / .exe)
+├── gesture_data/        # Recorded samples: gesture_data/<word>/<n>.npy
+├── word_model.h5        # Trained model (from train_lstm.py / make_demo_model.py)
+├── word_labels.json     # Class index → word mapping
 └── LICENSE
 ```
 
 ---
 
-## 11. Building a standalone .exe
+## 10. Configuration & tuning
 
-### Why this isn't a plain `pyinstaller app.py`
+Edit these constants directly in the source:
 
-The obvious approach — freezing `app.py` directly with
-[PyInstaller](https://pyinstaller.org/) — **does not work reliably** for
-this project. TensorFlow's native runtime consistently fails inside a
-PyInstaller-frozen app on Windows with:
+| File | Constant | Default | Meaning |
+|---|---|---|---|
+| `app.py` | `CONFIDENCE_THRESHOLD` | `0.45` | Minimum model confidence to commit a word. Raise it (e.g. 0.8) for a *real, well-trained* model to reduce false positives. |
+| `app.py` | `COMMIT_COOLDOWN` | `1.4` | Seconds before another word can be committed. |
+| `app.py` | `CAM_INDEX` | `0` | Which camera to open. |
+| `gesture_utils.py` | `SEQUENCE_LENGTH` | `30` | Frames per gesture (~1 s). Changing it requires re-recording and retraining. |
+| `gesture_utils.py` | `DEFAULT_WORDS` | 10 words | Starter vocabulary. |
+| `stt_utils.py` | `chunk_seconds` | `8` | Length of each audio chunk sent to speech-to-text. |
+
+**Adding a new word:** add it with `collect_data.py --words ...` (any word not yet in `gesture_data/` is treated as new), then re-run `train_lstm.py`.
+
+---
+
+## 11. Building the standalone Windows release
+
+### Why not a plain `pyinstaller app.py`?
+
+Freezing `app.py` directly does **not** work reliably. TensorFlow's native runtime fails inside a PyInstaller-frozen app on Windows with:
 
 ```
-ImportError: DLL load failed while importing _pywrap_tensorflow_internal:
-A dynamic link library (DLL) initialization routine failed.
+ImportError: DLL load failed while importing _pywrap_tensorflow_internal
 ```
 
-This is a long-standing, unresolved upstream issue (see
-`pyinstaller/pyinstaller` issues #3754, #8300, #8656 and
-`tensorflow/tensorflow` issues #90244, #96760) — `--noupx`,
-`--collect-all`, manually relocating the DLL, and using the latest
-PyInstaller version did not fix it in testing. Nuitka (an alternative
-freezer) has similar reports. Both `--onedir` and `--onefile` are
-affected identically, so switching between them doesn't help either.
+This is a long-standing upstream issue. Instead, SignBridge bundles a **portable (embeddable) Python** next to the app and uses a tiny launcher `.exe` that simply starts `app.py` through it, exactly like running `python app.py`. TensorFlow is never frozen, so the problem never occurs.
 
-### The approach that actually works: a portable-Python launcher
+### Step 1 — Prepare the project
 
-Instead of freezing TensorFlow at all, we bundle a small, portable Python
-runtime alongside the app and use a **tiny, dependency-free launcher**
-(compiled with PyInstaller, since it has nothing heavy to freeze) that
-simply starts the real app through that portable runtime — exactly like
-running `python app.py` normally, just packaged up. This sidesteps the
-DLL-freezing bug entirely because TensorFlow never gets frozen; it runs
-through a completely normal Python interpreter.
+- Make sure `launcher.py` exists (see below) and your real `word_model.h5`, `word_labels.json` and `gesture_data/` are in place.
+- Make sure `.gitignore` excludes `python_embed/`, `build/`, `dist/`, `*.spec`, `SignBridge_Release/` and `*.zip`.
 
-#### Step 1 — Get the Python Embeddable Package
-
-Download **Python 3.11's Windows embeddable package**:
-👉 https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
-
-Extract it into the project root as `python_embed/`, so you have:
-```
-Sign_Language_Application/python_embed/
-```
-
-#### Step 2 — Enable site-packages in the embeddable Python
-
-Open `python_embed\python311._pth` in a text editor. It looks like this
-by default:
-```
-python311.zip
-.
-
-# Uncomment to run site.main() automatically
-#import site
-```
-
-Edit it to:
-```
-python311.zip
-.
-Lib\site-packages
-..
-
-import site
-```
-(uncomment `import site`, add a `Lib\site-packages` line, and add a `..`
-line so the app's own folder — where `app.py`, `gesture_utils.py`, the
-model files, etc. live — is on the path too.)
-
-#### Step 3 — Install pip into the embeddable Python
-
-```powershell
-Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py"
-.\python_embed\python.exe get-pip.py
-```
-
-#### Step 4 — Install this project's dependencies into it
-
-```powershell
-.\python_embed\python.exe -m pip install -r requirements.txt
-```
-
-#### Step 5 — Add `tkinter` (the embeddable package omits it)
-
-The embeddable package deliberately ships without Tkinter. Copy it in
-from a **regular** Python 3.11 install (install one from python.org if
-you don't have one — it can coexist with the embeddable copy):
-
-```powershell
-$py311 = "C:\Path\To\Your\Regular\Python311"   # find yours with: py -3.11 -c "import sys; print(sys.prefix)"
-
-Copy-Item -Recurse "$py311\Lib\tkinter" ".\python_embed\Lib\site-packages\tkinter" -Force
-Copy-Item "$py311\DLLs\_tkinter.pyd" ".\python_embed\" -Force
-Copy-Item "$py311\DLLs\tcl86t.dll" ".\python_embed\" -Force
-Copy-Item "$py311\DLLs\tk86t.dll" ".\python_embed\" -Force
-Copy-Item "$py311\DLLs\zlib1.dll" ".\python_embed\" -Force -ErrorAction SilentlyContinue
-Copy-Item -Recurse "$py311\tcl" ".\python_embed\tcl"
-```
-
-(If `tcl86t.dll`/`tk86t.dll` don't exist in your install, check
-`dir "$py311\DLLs\tcl*.dll", "$py311\DLLs\tk*.dll"` for the actual names
-and adjust the commands above to match.)
-
-#### Step 6 — Test the portable Python directly
-
-```powershell
-$env:TCL_LIBRARY = "$PWD\python_embed\tcl\tcl8.6"
-$env:TK_LIBRARY = "$PWD\python_embed\tcl\tk8.6"
-.\python_embed\python.exe app.py
-```
-
-The app should open normally. If it does, the portable runtime is fully
-working and you're ready for the launcher.
-
-#### Step 7 — Create `launcher.py`
+`launcher.py`:
 
 ```python
 import subprocess
@@ -385,299 +401,258 @@ if __name__ == "__main__":
     main()
 ```
 
-This sets the Tcl/Tk environment variables automatically, so end users
-never have to touch them.
+### Step 2 — Get the Python embeddable package
 
-#### Step 8 — Compile the launcher (not `app.py`!) with PyInstaller
+Download **Python 3.11's Windows embeddable package** and extract it into the project root as `python_embed/`:
+
+<https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip>
+
+### Step 3 — Enable site-packages
+
+Edit `python_embed\python311._pth` so it contains exactly:
+
+```
+python311.zip
+.
+Lib\site-packages
+..
+
+import site
+```
+
+(`Lib\site-packages` lets installed packages be found. `..` puts the app folder on the path so `app.py`, `gesture_utils.py` and the other modules can be imported.)
+
+### Step 4 — Install pip
+
+```powershell
+Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py"
+.\python_embed\python.exe get-pip.py
+```
+
+### Step 5 — Install dependencies into the embedded Python
+
+```powershell
+.\python_embed\python.exe -m pip install -r requirements.txt
+```
+
+### Step 6 — Add Tkinter (the embeddable package omits it)
+
+Copy it from a regular Python 3.11 install:
+
+```powershell
+$py311 = (py -3.11 -c "import sys; print(sys.prefix)")
+
+Copy-Item -Recurse "$py311\Lib\tkinter" ".\python_embed\Lib\site-packages\tkinter" -Force
+Copy-Item "$py311\DLLs\_tkinter.pyd" ".\python_embed\" -Force
+Copy-Item "$py311\DLLs\tcl86t.dll" ".\python_embed\" -Force
+Copy-Item "$py311\DLLs\tk86t.dll" ".\python_embed\" -Force
+Copy-Item "$py311\DLLs\zlib1.dll" ".\python_embed\" -Force -ErrorAction SilentlyContinue
+Copy-Item -Recurse "$py311\tcl" ".\python_embed\tcl" -Force
+```
+
+### Step 7 — Test the portable Python directly
+
+```powershell
+$env:TCL_LIBRARY = "$PWD\python_embed\tcl\tcl8.6"
+$env:TK_LIBRARY  = "$PWD\python_embed\tcl\tk8.6"
+.\python_embed\python.exe app.py
+```
+
+Test **both modes**: camera + recognition in Mode 1; microphone list, `.wav` playback, transcription (internet on) and the avatar in Mode 2. Use `python.exe` (not `pythonw.exe`) while testing so error messages are visible.
+
+### Step 8 — Compile the launcher
 
 ```powershell
 pip install pyinstaller
 pyinstaller --name "SignBridge" --onefile --windowed --icon "resources\SignBridge.ico" launcher.py
 ```
 
-This build is fast (seconds, not minutes) and produces a small
-`.exe`, because `launcher.py` has no heavy dependencies to freeze — it
-just calls `subprocess`.
+This takes seconds because the launcher has no heavy dependencies. Output: `dist\SignBridge.exe`.
 
-#### Step 9 — Assemble the release folder
+### Step 9 — Assemble the release folder
 
 ```powershell
+Remove-Item -Recurse -Force SignBridge_Release -ErrorAction SilentlyContinue
 mkdir SignBridge_Release
+
 Copy-Item dist\SignBridge.exe SignBridge_Release\
 Copy-Item -Recurse python_embed SignBridge_Release\
-Copy-Item app.py, gesture_utils.py, word_model.h5, word_labels.json SignBridge_Release\
+Copy-Item app.py, audio_player.py, avatar.py, renderer3d.py, stt_utils.py, gesture_utils.py SignBridge_Release\
+Copy-Item word_model.h5, word_labels.json SignBridge_Release\
 Copy-Item -Recurse resources SignBridge_Release\
+Copy-Item -Recurse gesture_data SignBridge_Release\
 ```
 
+> `gesture_data/` **must** be included in v2.0 — the avatar animates from those recordings. Delete any `__pycache__` folders from the release folder.
+
 Final layout:
+
 ```
 SignBridge_Release/
 ├── SignBridge.exe
-├── python_embed/
+├── python_embed/                 # includes Lib\site-packages
 ├── app.py
+├── audio_player.py
+├── avatar.py
+├── renderer3d.py
+├── stt_utils.py
 ├── gesture_utils.py
 ├── word_model.h5
 ├── word_labels.json
+├── gesture_data/
 └── resources/
     ├── SignBridge.png
     └── SignBridge.ico
 ```
 
-#### Step 10 — Test it as an end user would
+### Step 10 — Test it as an end user would
 
 ```powershell
 cd SignBridge_Release
 .\SignBridge.exe
 ```
 
-Ideally also copy this folder to a machine without Python installed (or a
-clean VM) and confirm it runs there too.
+Ideally test on a PC (or clean VM) **without Python installed**.
 
-#### Step 11 — Package and publish
+### Step 11 — Package
 
 ```powershell
-Compress-Archive -Path "SignBridge_Release\*" -DestinationPath "SignBridge_v1.0_windows.zip"
+Compress-Archive -Path "SignBridge_Release\*" -DestinationPath "SignBridge_v2.0_windows.zip"
 ```
 
-Verify the zip itself works by extracting it somewhere else and running
-it from there, *then* publish it:
-
-1. Go to this repo's **Releases** page → **"Draft a new release"**.
-2. Create a tag (e.g. `v1.0.0`).
-3. Attach `SignBridge_v1.0_windows.zip` as a release asset.
-4. In the release notes, link back to [section 2](#2-download--run-no-python-needed)
-   of this README (or just repeat the extract-and-run steps) so end users
-   know what to do with it.
-
-Don't commit `python_embed/`, `build/`, `dist/`, `SignBridge_Release/`, or
-`*.zip` to git — see the `.gitignore` in this repo, which already
-excludes them.
+The zip will be large because TensorFlow lives in `python_embed\Lib`. PowerShell's `Compress-Archive` fails on archives over **2 GB**; if you hit that, use **7-Zip** instead. GitHub release assets are limited to 2 GB each. Extract the zip somewhere else and run it from there to verify it before publishing.
 
 ---
 
-## 12. Troubleshooting
+## 12. Publishing to GitHub
 
-**`pip install -r requirements.txt` fails on `tensorflow==...` with "no
-matching distribution found"**
-Your Python version is likely 3.12/3.13. Rebuild the virtual environment
-with Python 3.11 (see [section 5](#5-set-up-a-virtual-environment)).
+1. Check what Git is about to commit:
+   ```powershell
+   git status
+   ```
+   `python_embed/`, `dist/`, `build/`, `SignBridge_Release/` and `*.zip` must **not** appear. Git (and GitHub) reject files over 100 MB.
+2. Commit and push the source:
+   ```powershell
+   git add .
+   git commit -m "Release v2.0: Speech-to-Sign mode, avatar, audio player"
+   git push origin main
+   ```
+3. On GitHub: **Releases → Draft a new release**.
+4. Create the tag `v2.0.0`, set the title to `SignBridge v2.0`.
+5. Attach **`SignBridge_v2.0_windows.zip`** as a release asset.
+6. In the release notes, summarise what's new and repeat the [download & run](#3-download--run-no-python-needed) steps.
+
+Never commit `venv/`, `python_embed/`, build output or zip files. Only the source goes in the repository; the packaged build goes in the Release.
+
+---
+
+## 13. Troubleshooting
 
 **`AttributeError: module 'mediapipe' has no attribute 'solutions'`**
-Newer MediaPipe releases (0.10.30+) removed the legacy `solutions` API
-this project uses. Make sure `requirements.txt` still pins
-`mediapipe==0.10.14`, and that you're installing into an **active virtual
-environment** (check your terminal prompt shows `(venv)` — a fresh
-terminal window does *not* auto-activate it).
+You are almost certainly running the wrong Python (often 3.13) or the wrong MediaPipe. Activate the virtual environment (`.\venv\Scripts\activate`), confirm `python --version` prints 3.11.x, and run `pip install mediapipe==0.10.14`. If NumPy conflicts appear: `pip install "numpy<2"`.
 
-**`venv\Scripts\activate` fails with "The module 'venv' could not be
-loaded"**
-You're in PowerShell and left off the leading `.\` — see
-[section 5](#5-set-up-a-virtual-environment).
+**`pip install` says "no matching distribution found" for TensorFlow or MediaPipe**
+Your Python is 3.12/3.13. Recreate the venv with `py -3.11 -m venv venv`.
 
-**Camera doesn't open / `Could not open the webcam`**
-Check no other application (Zoom, Teams, another instance of this app)
-is already using it, and that Windows camera privacy settings allow
-desktop apps to access it.
+**`venv\Scripts\activate` fails with "The module 'venv' could not be loaded"**
+You are in PowerShell and left off the leading `.\` — use `.\venv\Scripts\activate`.
 
-**Model not found popup on launch**
-Run `python make_demo_model.py` for an instant test model — see
-[section 7](#7-quick-start-run-it-with-the-dummy-demo-model) — or train a
-real one, see [section 15](#15-for-contributors-training-a-real-ai-model).
+**"running scripts is disabled on this system"**
+Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` once.
 
-**`ImportError: DLL load failed while importing
-_pywrap_tensorflow_internal` when running a packaged `.exe`**
-This is the TensorFlow+PyInstaller freezing bug described in
-[section 11](#11-building-a-standalone-exe) — build using the
-portable-Python launcher approach there instead of freezing `app.py`
-directly.
+**`oneDNN custom operations are on…` / `absl::InitializeLog()` messages**
+Harmless TensorFlow log lines. Ignore them (or set `TF_ENABLE_ONEDNN_OPTS=0` to silence the first).
 
-**`ModuleNotFoundError: No module named 'tkinter'` while testing
-`python_embed\python.exe app.py`**
-The embeddable package doesn't ship Tkinter — see Step 5 in
-[section 11](#11-building-a-standalone-exe).
+**`pip install pyaudio` fails**
+Make sure you are on Python 3.11 (prebuilt Windows wheels exist for it). Otherwise install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) or download a matching prebuilt `PyAudio` wheel and install it with `pip install <file>.whl`.
 
-**`ModuleNotFoundError: No module named 'gesture_utils'` (or the app's own
-files aren't found) with `python_embed\python.exe app.py`**
-The embeddable Python's `python311._pth` file restricts the import path
-to only what's listed in it — make sure it includes a `..` line pointing
-back to the project folder (Step 2 in [section 11](#11-building-a-standalone-exe)).
+**Microphone dropdown is empty / wrong device**
+Open Windows *Settings → System → Sound → Input* and make sure the device is **Enabled**. Also check *Settings → Privacy & security → Microphone* and allow desktop apps to use the microphone.
 
----
+**Speech-to-text errors ("Speech service error", nothing transcribed)**
+Mode 2 transcription needs a working internet connection. Free Google endpoints can also fail on very noisy audio or music; this is speech recognition, not song/lyric recognition.
 
-## 13. Honest limitations
+**The avatar never signs, and the status says "No recorded gesture for '<word>'"**
+`gesture_data/<word>/` has no `.npy` files for that word. Run `python make_demo_model.py` (demo data) or `python collect_data.py` + `python train_lstm.py` (real data). In a release build, make sure `gesture_data/` was copied next to `SignBridge.exe`.
 
-- Accuracy depends on recording enough consistent samples per word
-  (30–40+, varying lighting/background helps) — this is a small student/
-  hobby-scale project, not a production-grade sign language system.
-- If your hand leaves the frame mid-sign, the recognition buffer resets —
-  keep your hand visible for the whole sign.
-- This recognises a small fixed vocabulary (10–20 words), not full,
-  natural sign language grammar.
+**Camera doesn't open / "Could not open the webcam"**
+Close other apps that use the camera (Zoom, Teams, another SignBridge window) and check *Settings → Privacy & security → Camera*. Change `CAM_INDEX` in `app.py` if you have several cameras.
 
----
+**"Model not found" popup on launch**
+`word_model.h5` and `word_labels.json` are missing from the app folder. Run `python make_demo_model.py` or train a real model.
 
-## 14. Collaborator workflow: branching, pushing, and pull requests
+**Avatar feels slow**
+Rendering runs on the CPU in plain Python. Close other heavy apps, lower the avatar frame rate in `avatar.py`, or reduce the window size.
 
-This repository's `main` branch is **protected** — nobody (including
-collaborators) can push to it directly. All changes go through a
-**feature branch + Pull Request**, reviewed and merged by a maintainer.
-Here's the full workflow, start to finish.
+**`ImportError: DLL load failed while importing _pywrap_tensorflow_internal` in a packaged `.exe`**
+This is the TensorFlow + PyInstaller freezing bug. Use the portable-Python launcher approach in [section 11](#11-building-the-standalone-windows-release) instead of freezing `app.py`.
 
-### If you've been added as a Collaborator (write access)
+**`ModuleNotFoundError: No module named 'tkinter'` with `python_embed\python.exe`**
+The embeddable package omits Tkinter. See Step 6 of [section 11](#11-building-the-standalone-windows-release).
 
-**1. Get the project (one-time setup):**
-```powershell
-git clone https://github.com/Sahan20030814/Sign_Language_Application.git
-cd Sign_Language_Application
-```
+**`ModuleNotFoundError: No module named 'gesture_utils'` (or other project modules) with `python_embed\python.exe`**
+`python311._pth` must contain the `..` line. See Step 3 of [section 11](#11-building-the-standalone-windows-release).
 
-**2. Create a new branch for your change** (never work directly on `main`):
-```powershell
-git checkout main
-git pull origin main          # make sure you're starting from the latest code
-git checkout -b feature/my-improvement
-```
-Use a short, descriptive branch name, e.g. `feature/add-goodbye-word`,
-`fix/mic-crash`, `docs/update-readme`.
+**The release `.exe` opens nothing and shows no error**
+The launcher uses `pythonw.exe`, which hides errors. Run `.\python_embed\python.exe app.py` from the release folder (after setting `TCL_LIBRARY` / `TK_LIBRARY` as in Step 7) to see the actual message.
 
-**3. Make your changes**, then check what changed:
-```powershell
-git status
-git diff
-```
-
-**4. Stage and commit:**
-```powershell
-git add .
-git commit -m "Describe what this change does"
-```
-
-**5. Push your branch to GitHub** (not `main` — your own branch):
-```powershell
-git push origin feature/my-improvement
-```
-The **first time** you push a new branch, Git may ask you to set the
-upstream — if so, use exactly the command it suggests, or:
-```powershell
-git push -u origin feature/my-improvement
-```
-
-**6. Open a Pull Request:**
-- GitHub shows a **"Compare & pull request"** banner right after you push
-  — click it. (Or go to the repo → **Pull requests** tab →
-  **New pull request**.)
-- Base branch: `main`. Compare branch: your `feature/...` branch.
-- Add a clear title/description of what you changed and why, then
-  **"Create pull request"**.
-
-**7. Wait for review.** A maintainer will review, may leave comments
-(resolve those and push more commits to the same branch if needed — they
-land in the same PR automatically), and will **merge** it once approved.
-
-**8. After it's merged, sync your local `main`:**
-```powershell
-git checkout main
-git pull origin main
-```
-You can now delete your old branch (optional, keeps things tidy):
-```powershell
-git branch -d feature/my-improvement
-git push origin --delete feature/my-improvement
-```
-
-### Keeping your branch up to date while you work
-
-If `main` gets updated by someone else while you're still working on your
-branch, bring those changes into your branch before opening (or while
-waiting on) your PR:
-```powershell
-git checkout feature/my-improvement
-git fetch origin
-git merge origin/main
-```
-Resolve any merge conflicts Git points out, then commit and push as usual.
-
-### If you do NOT have write access (public contributors)
-
-You'll need to **fork** the repo first — see the note in this README's
-branch-protection setup, or briefly:
-1. Click **"Fork"** on the repo's GitHub page (copies it to your own account).
-2. Clone **your fork**, not the original:
-   ```powershell
-   git clone https://github.com/Sahan20030814/Sign_Language_Application.git
-   ```
-3. Follow steps 2–6 above exactly the same way, but your `git push` goes
-   to your fork.
-4. When opening the Pull Request, GitHub will offer **"compare across
-   forks"** — target the original repo's `main` branch as the base.
+**Windows SmartScreen blocks the app**
+Click *More info → Run anyway*. The app is unsigned because it has no paid code-signing certificate.
 
 ---
 
-## 15. For Contributors: training a REAL AI model
+## 14. Honest limitations
 
-The dummy model from [section 7](#7-quick-start-run-it-with-the-dummy-demo-model)
-is only for kicking the tires. If you're contributing to this project —
-improving accuracy, adding new vocabulary words, or just want the app to
-actually work correctly for you — here's how to train it on **real,
-your-own-recorded** hand signs.
-
-### Step 1 — Record your signs
-
-```powershell
-python collect_data.py
-```
-
-- Default vocabulary: `hello, thanks, yes, no, please, help, water, food,
-  stop, love` (10 words). To record a custom subset, or add a brand-new
-  word to the vocabulary, pass it explicitly:
-  ```powershell
-  python collect_data.py --words hello thanks yes no please goodbye
-  ```
-  (Any word not already in `gesture_data/` is treated as new.)
-- A camera window opens. For each word: press **SPACE**, wait for the
-  3-2-1 countdown, then perform the sign while it records "RECORDING..."
-  for ~1 second (30 frames of hand landmarks, not video).
-- Records 30 samples per word by default — pass `--sequences 40` (or
-  more) for a larger set. **More samples = better accuracy.** Aim for at
-  least 30–40 per word, varying your hand position, lighting, and
-  background slightly between takes so the model generalises instead of
-  memorising one exact setup.
-- **N** skips to the next word early, **Q** quits at any point (samples
-  already recorded are kept).
-- Recordings are saved under `gesture_data/<word>/*.npy` — plain NumPy
-  arrays of landmark coordinates (tiny files, no video/images are stored).
-
-### Step 2 — Train the model
-
-```powershell
-python train_lstm.py
-```
-
-- Trains an LSTM classifier on everything currently in `gesture_data/`.
-- Produces/overwrites `word_model.h5` + `word_labels.json` in the project
-  root — these are the two files the app actually loads at runtime.
-- Takes a few minutes on a normal CPU; the dataset is intentionally small.
-- Re-run this any time you add more recordings or new words to
-  `gesture_data/` — it always retrains from scratch on the full folder.
-
-### Tips for contributing good training data
-
-- Keep your hand fully inside the frame for the whole ~1 second recording
-  — if it leaves frame, that sample is effectively noise.
-- Record a few sessions at different times of day / lighting rather than
-  30 samples back-to-back in identical conditions.
-- If you're proposing a new vocabulary word in a pull request, please
-  mention in the PR description how many samples you recorded for it, and
-  ideally include the `gesture_data/<word>/` folder so others can retrain
-  and verify.
-- `word_model.h5` is a **binary artifact** — if you're contributing
-  improved training data rather than a pre-trained model file, prefer
-  committing the `gesture_data/` recordings over committing a large
-  retrained `.h5`, and let maintainers regenerate the model from that
-  data (keeps the repo's history from bloating with binary diffs).
+- Accuracy depends on how many consistent samples you record per word (30–40+, with varied lighting and background). This is a small student/hobby-scale project, not a production-grade sign language system.
+- The vocabulary is a small fixed set (10–20 words). It does **not** understand natural sign language grammar.
+- If your hand leaves the frame mid-sign, the recognition buffer resets. Keep the hand visible for the whole sign.
+- The bundled `word_model.h5` may be a **demo model** trained on synthetic data. Train on your own recordings for real accuracy.
+- **Mode 2 speech-to-text needs internet** and is tuned for spoken speech, not music or singing.
+- The audio-file picker accepts **`.wav`** only.
+- The free speech API does not return per-word timestamps. For audio files, each chunk's words are spread **evenly** across that chunk's time slot, so avatar timing is an approximation, not frame-perfect. Early in playback, before the first chunk returns, the avatar stays idle for a few seconds (that is real network latency).
+- The timeline is a simple seek bar, not a waveform.
+- The avatar is a stylised 2D figure drawn with Tkinter. Only its hands move, and they reflect the *recorded* landmark shapes, so gesture quality is only as good as your recordings.
+- Tkinter has no true blur or shadow effects, so the UI uses gradients, rounded cards and colour-transition animations instead.
 
 ---
 
-## 16. License
+## 15. Contributing
+
+Contributions are welcome — new vocabulary, better training data, UI polish, or bug fixes.
+
+- If you propose a **new vocabulary word**, mention in your pull request how many samples you recorded, and ideally include the `gesture_data/<word>/` folder so others can retrain and verify.
+- Prefer committing **`gesture_data/` recordings** over a large retrained `word_model.h5`. The `.h5` is a binary artifact and bloats the repository history; maintainers can regenerate it from the data.
+- Record several sessions at different times of day and lighting, with your hand fully in frame.
+- Please do not commit `venv/`, `python_embed/`, `dist/`, `build/` or `*.zip` files.
+
+---
+
+## 16. Privacy
+
+- **Camera video never leaves your PC.** Only hand-landmark numbers are computed locally, and recordings you make are stored as small `.npy` files (no video or images).
+- **Mode 1 and text-to-speech are fully offline.**
+- **Mode 2 sends audio to Google's free web speech API** to turn speech into text (microphone speech in short phrases, or audio-file chunks). Do not use Mode 2 with audio you are not comfortable sending to an online service.
+
+---
+
+## 17. Changelog
+
+### v2.0
+- **New:** Speech → Sign Language mode with a 🔁 Mode switch.
+- **New:** Microphone input with automatic device list and mute control.
+- **New:** `.wav` audio-file input with play/pause, seek timeline, ±5 s skip and 0.5x–2x speed.
+- **New:** Streaming transcription (~8 s chunks) with progress overlay and a copyable transcript box.
+- **New:** Human avatar whose hands are driven by real recorded landmark sequences; **Play/Pause Signs**; automatic sync with audio playback.
+- **New:** Webcam released in Speech → Sign mode and reconnected on return.
+- **New:** `audio_player.py`, `stt_utils.py`, `avatar.py`, `renderer3d.py`; `get_word_sample()` in `gesture_utils.py`.
+- **Changed:** new dependencies — `SpeechRecognition`, `pydub`, `pyaudio`, `pygame`.
+- **Fixed:** header layout, language dropdown rendering on Windows, mode/source switching race conditions with background transcription.
+
+### v1.0
+- Sign Language → Speech mode with word-level LSTM recognition, automatic speech, sentence building, and portable-Python Windows release.
+
+---
+
+## 18. License
 
 See [`LICENSE`](./LICENSE) for details.
